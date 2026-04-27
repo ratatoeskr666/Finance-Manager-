@@ -15,6 +15,7 @@ import type { Account, DailyPoint, PrognosisMethod, Transaction } from '../lib/t
 import { addDays, addMonths, clipSeries, parseIso, toDailySeries, toIsoDate } from '../lib/balances';
 import { projectFuture } from '../lib/prognosis';
 import { formatEur, formatMonth } from '../lib/format';
+import { DayTooltip } from './DayTooltip';
 
 type Props = {
   accounts: Account[];
@@ -78,9 +79,8 @@ export function BalanceChart({
             width={88}
           />
           <Tooltip
-            contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#e2e8f0' }}
-            labelFormatter={(iso) => new Date(`${iso}T00:00:00`).toLocaleDateString('de-DE')}
-            formatter={(v) => formatEur(Number(v))}
+            cursor={{ stroke: '#475569', strokeDasharray: '3 3' }}
+            content={<DayTooltip accounts={accounts} txByAccount={txByAccount} selectedId={selectedId} />}
           />
           <Legend wrapperStyle={{ color: '#cbd5e1', fontSize: 12 }} />
           {view.prognosisStart && (

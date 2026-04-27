@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react';
 import { AccountForm } from './components/AccountForm';
 import { AccountList } from './components/AccountList';
 import { BalanceChart } from './components/BalanceChart';
+import { CounterpartyPieChart } from './components/CounterpartyPieChart';
 import { CsvImportDialog } from './components/CsvImportDialog';
+import { MonthlySpendingChart } from './components/MonthlySpendingChart';
 import { PrognosisControls } from './components/PrognosisControls';
 import { StatsBar } from './components/StatsBar';
 import { TimespanPicker } from './components/TimespanPicker';
@@ -10,7 +12,7 @@ import { Card } from './components/ui/Card';
 import { Modal } from './components/ui/Modal';
 import { useAppState } from './hooks/useAppState';
 import { addMonths, parseIso, toIsoDate } from './lib/balances';
-import type { Account, Timespan } from './lib/types';
+import type { Account, ChartView, Timespan } from './lib/types';
 import { exportAll, importAll } from './lib/storage';
 import { Button } from './components/ui/Button';
 
@@ -18,6 +20,7 @@ export function App() {
   const { state, upsertAccount, removeAccount, addTransactions, updateSettings } = useAppState();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [timespan, setTimespan] = useState<Timespan>('6M');
+  const [view, setView] = useState<ChartView>('balance');
   const [editing, setEditing] = useState<Account | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
   const [importingFor, setImportingFor] = useState<Account | null>(null);
@@ -98,25 +101,50 @@ export function App() {
 
         <Card className="mt-6">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
-            <TimespanPicker value={timespan} onChange={setTimespan} />
-            <PrognosisControls
-              method={state.settings.prognosisMethod}
-              onMethodChange={(m) => updateSettings({ prognosisMethod: m })}
-              horizon={state.settings.prognosisHorizonMonths}
-              onHorizonChange={(n) => updateSettings({ prognosisHorizonMonths: n })}
-            />
+            <ViewTabs value={view} onChange={setView} />
+            <div className="flex flex-wrap items-center gap-3">
+              <TimespanPicker value={timespan} onChange={setTimespan} />
+              {view === 'balance' && (
+                <PrognosisControls
+                  method={state.settings.prognosisMethod}
+                  onMethodChange={(m) => updateSettings({ prognosisMethod: m })}
+                  horizon={state.settings.prognosisHorizonMonths}
+                  onHorizonChange={(n) => updateSettings({ prognosisHorizonMonths: n })}
+                />
+              )}
+            </div>
           </div>
           <div className="p-4">
-            <BalanceChart
-              accounts={state.accounts}
-              txByAccount={state.txByAccount}
-              selectedId={selectedId}
-              fromIso={fromIso}
-              toIso={toIso}
-              prognosisMethod={state.settings.prognosisMethod}
-              prognosisHorizon={state.settings.prognosisHorizonMonths}
-              showCombined={state.settings.showCombined}
-            />
+            {view === 'balance' && (
+              <BalanceChart
+                accounts={state.accounts}
+                txByAccount={state.txByAccount}
+                selectedId={selectedId}
+                fromIso={fromIso}
+                toIso={toIso}
+                prognosisMethod={state.settings.prognosisMethod}
+                prognosisHorizon={state.settings.prognosisHorizonMonths}
+                showCombined={state.settings.showCombined}
+              />
+            )}
+            {view === 'monthly' && (
+              <MonthlySpendingChart
+                accounts={state.accounts}
+                txByAccount={state.txByAccount}
+                selectedId={selectedId}
+                fromIso={fromIso}
+                toIso={toIso}
+              />
+            )}
+            {view === 'counterparty' && (
+              <CounterpartyPieChart
+                accounts={state.accounts}
+                txByAccount={state.txByAccount}
+                selectedId={selectedId}
+                fromIso={fromIso}
+                toIso={toIso}
+              />
+            )}
           </div>
         </Card>
 
@@ -168,6 +196,30 @@ export function App() {
           onImport={(txs) => addTransactions(importingFor.id, txs)}
         />
       )}
+    </div>
+  );
+}
+
+function ViewTabs({ value, onChange }: { value: ChartView; onChange: (v: ChartView) => void }) {
+  const TABS: { value: ChartView; label: string }[] = [
+    { value: 'balance', label: 'Balances' },
+    { value: 'monthly', label: 'Monthly spending' },
+    { value: 'counterparty', label: 'By recipient' },
+  ];
+  return (
+    <div className="inline-flex overflow-hidden rounded-lg border border-slate-700 bg-slate-900 text-sm">
+      {TABS.map((t) => (
+        <button
+          key={t.value}
+          onClick={() => onChange(t.value)}
+          className={[
+            'px-3 py-1.5 transition',
+            value === t.value ? 'bg-cyan-500/15 text-cyan-200' : 'text-slate-300 hover:bg-slate-800',
+          ].join(' ')}
+        >
+          {t.label}
+        </button>
+      ))}
     </div>
   );
 }
