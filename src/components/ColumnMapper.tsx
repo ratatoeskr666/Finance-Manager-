@@ -64,6 +64,20 @@ export function ColumnMapper({
           ))}
         </Select>
       </div>
+      <div>
+        <Label>Counterparty column (optional)</Label>
+        <Select
+          value={mapping.counterparty ?? NONE}
+          onChange={(e) => set({ counterparty: e.target.value === NONE ? undefined : e.target.value })}
+        >
+          <option value={NONE}>— none —</option>
+          {headers.map((h) => (
+            <option key={h} value={h}>
+              {h}
+            </option>
+          ))}
+        </Select>
+      </div>
     </div>
   );
 }

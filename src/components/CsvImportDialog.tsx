@@ -89,6 +89,8 @@ export function CsvImportDialog({
       amount: parsed.headers.includes(prev.amount) ? prev.amount : parsed.headers[1] ?? parsed.headers[0],
       balance: prev.balance && parsed.headers.includes(prev.balance) ? prev.balance : undefined,
       description: prev.description && parsed.headers.includes(prev.description) ? prev.description : undefined,
+      counterparty:
+        prev.counterparty && parsed.headers.includes(prev.counterparty) ? prev.counterparty : undefined,
     }));
   }, [parsed]);
 
@@ -204,6 +206,7 @@ export function CsvImportDialog({
                               {h === mapping.amount && <span className="ml-1 text-emerald-400">amount</span>}
                               {h === mapping.balance && <span className="ml-1 text-violet-400">balance</span>}
                               {h === mapping.description && <span className="ml-1 text-amber-400">desc</span>}
+                              {h === mapping.counterparty && <span className="ml-1 text-pink-400">payee</span>}
                             </th>
                           ))}
                         </tr>

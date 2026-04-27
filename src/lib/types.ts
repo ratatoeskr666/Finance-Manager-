@@ -7,6 +7,7 @@ export const ColumnMappingSchema = z.object({
   amount: z.string(),
   balance: z.string().optional(),
   description: z.string().optional(),
+  counterparty: z.string().optional(),
 });
 export type ColumnMapping = z.infer<typeof ColumnMappingSchema>;
 
@@ -58,11 +59,13 @@ export const TransactionSchema = z.object({
   amount: z.number(),
   balance: z.number(),
   description: z.string().optional(),
+  counterparty: z.string().optional(),
 });
 export type Transaction = z.infer<typeof TransactionSchema>;
 
 export type Timespan = '1M' | '3M' | '6M' | '1Y' | 'ALL';
 export type PrognosisMethod = 'linear' | 'avgNet';
+export type ChartView = 'balance' | 'monthly' | 'counterparty';
 
 export const SettingsSchema = z.object({
   defaultTimespan: z.enum(['1M', '3M', '6M', '1Y', 'ALL']).default('6M'),

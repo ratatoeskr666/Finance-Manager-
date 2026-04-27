@@ -88,6 +88,7 @@ export function parseRows(rows: CsvRow[], opts: ParseRowsOptions): ParseRowsResu
       return;
     }
     const description = mapping.description ? row[mapping.description] : undefined;
+    const counterparty = mapping.counterparty ? row[mapping.counterparty] : undefined;
     const date = toIsoDate(d);
     transactions.push({
       id: rowId(accountId, date, amount, description, i),
@@ -95,6 +96,7 @@ export function parseRows(rows: CsvRow[], opts: ParseRowsOptions): ParseRowsResu
       date,
       amount,
       description: description?.trim() || undefined,
+      counterparty: counterparty?.trim() || undefined,
     });
   });
 
