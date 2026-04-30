@@ -65,7 +65,34 @@ export type Transaction = z.infer<typeof TransactionSchema>;
 
 export type Timespan = '1M' | '3M' | '6M' | '1Y' | 'ALL';
 export type PrognosisMethod = 'linear' | 'avgNet';
-export type ChartView = 'balance' | 'monthly' | 'counterparty';
+export type ChartView = 'balance' | 'monthly' | 'counterparty' | 'categories' | 'transactions';
+
+export const CategorySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  color: z.string(),
+  icon: z.string().optional(),
+  /** Optional monthly budget (positive EUR amount). */
+  budget: z.number().optional(),
+});
+export type Category = z.infer<typeof CategorySchema>;
+
+export const CategoryRuleSchema = z.object({
+  id: z.string(),
+  categoryId: z.string(),
+  field: z.enum(['counterparty', 'description', 'any']),
+  mode: z.enum(['contains', 'equals', 'regex']),
+  pattern: z.string(),
+  caseSensitive: z.boolean().optional(),
+});
+export type CategoryRule = z.infer<typeof CategoryRuleSchema>;
+
+/**
+ * txKey -> categoryId (manual assignment) or null (manually marked uncategorized).
+ * Absence from the map means "use rule engine".
+ */
+export const CategoryOverridesSchema = z.record(z.string(), z.string().nullable());
+export type CategoryOverrides = z.infer<typeof CategoryOverridesSchema>;
 
 export const SettingsSchema = z.object({
   defaultTimespan: z.enum(['1M', '3M', '6M', '1Y', 'ALL']).default('6M'),
