@@ -15,8 +15,14 @@ import {
   type Transaction,
 } from './types';
 import { defaultCategories } from './categories';
+import {
+  InflationSeriesSchema,
+  InflationSettingsSchema,
+  type InflationSeries,
+  type InflationSettings,
+} from './inflation';
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const KEYS = {
   schemaVersion: 'schemaVersion',
   accounts: 'accounts',
@@ -25,6 +31,8 @@ const KEYS = {
   categories: 'categories',
   categoryRules: 'categoryRules',
   categoryOverrides: 'categoryOverrides',
+  inflationSettings: 'inflationSettings',
+  inflationSeriesPrefix: 'inflationSeries:',
 } as const;
 
 const AccountsArraySchema = z.array(AccountSchema);
@@ -116,6 +124,28 @@ export async function saveCategoryOverrides(overrides: CategoryOverrides): Promi
   await set(KEYS.categoryOverrides, overrides);
 }
 
+export async function loadInflationSettings(): Promise<InflationSettings> {
+  const raw = await get(KEYS.inflationSettings);
+  const parsed = InflationSettingsSchema.safeParse(raw);
+  if (parsed.success) return parsed.data;
+  return InflationSettingsSchema.parse({});
+}
+
+export async function saveInflationSettings(settings: InflationSettings): Promise<void> {
+  await set(KEYS.inflationSettings, settings);
+}
+
+export async function loadInflationSeries(countryCode: string): Promise<InflationSeries | undefined> {
+  const raw = await get(KEYS.inflationSeriesPrefix + countryCode);
+  if (!raw) return undefined;
+  const parsed = InflationSeriesSchema.safeParse(raw);
+  return parsed.success ? parsed.data : undefined;
+}
+
+export async function saveInflationSeries(series: InflationSeries): Promise<void> {
+  await set(KEYS.inflationSeriesPrefix + series.countryCode, series);
+}
+
 export async function exportAll(): Promise<string> {
   const accounts = await loadAccounts();
   const txByAccount: Record<string, Transaction[]> = {};
@@ -124,6 +154,7 @@ export async function exportAll(): Promise<string> {
   const categories = await loadCategories();
   const categoryRules = await loadCategoryRules();
   const categoryOverrides = await loadCategoryOverrides();
+  const inflationSettings = await loadInflationSettings();
   return JSON.stringify(
     {
       schemaVersion: SCHEMA_VERSION,
@@ -133,6 +164,7 @@ export async function exportAll(): Promise<string> {
       categories,
       categoryRules,
       categoryOverrides,
+      inflationSettings,
     },
     null,
     2,
@@ -147,6 +179,7 @@ export async function importAll(json: string): Promise<void> {
   const categories = CategoriesArraySchema.parse(parsed.categories ?? []);
   const categoryRules = CategoryRulesArraySchema.parse(parsed.categoryRules ?? []);
   const categoryOverrides = CategoryOverridesSchema.parse(parsed.categoryOverrides ?? {});
+  const inflationSettings = InflationSettingsSchema.parse(parsed.inflationSettings ?? {});
   await saveAccounts(accounts);
   await saveSettings(settings);
   for (const [id, txs] of Object.entries(txByAccount)) {
@@ -155,6 +188,7 @@ export async function importAll(json: string): Promise<void> {
   await saveCategories(categories);
   await saveCategoryRules(categoryRules);
   await saveCategoryOverrides(categoryOverrides);
+  await saveInflationSettings(inflationSettings);
 }
 
 export async function listKeys(): Promise<string[]> {

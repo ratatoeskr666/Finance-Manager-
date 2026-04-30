@@ -6,6 +6,7 @@ import { CategoryManager } from './components/CategoryManager';
 import { CategoryReport } from './components/CategoryReport';
 import { CounterpartyPieChart } from './components/CounterpartyPieChart';
 import { CsvImportDialog } from './components/CsvImportDialog';
+import { InflationControls } from './components/InflationControls';
 import { MonthlySpendingChart } from './components/MonthlySpendingChart';
 import { PrognosisControls } from './components/PrognosisControls';
 import { StatsBar } from './components/StatsBar';
@@ -31,6 +32,8 @@ export function App() {
     setCategoryRules,
     setCategoryOverride,
     setCategoryOverridesBulk,
+    updateInflationSettings,
+    upsertInflationSeries,
   } = useAppState();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [timespan, setTimespan] = useState<Timespan>('6M');
@@ -133,12 +136,20 @@ export function App() {
             <div className="flex flex-wrap items-center gap-3">
               <TimespanPicker value={timespan} onChange={setTimespan} />
               {view === 'balance' && (
-                <PrognosisControls
-                  method={state.settings.prognosisMethod}
-                  onMethodChange={(m) => updateSettings({ prognosisMethod: m })}
-                  horizon={state.settings.prognosisHorizonMonths}
-                  onHorizonChange={(n) => updateSettings({ prognosisHorizonMonths: n })}
-                />
+                <>
+                  <PrognosisControls
+                    method={state.settings.prognosisMethod}
+                    onMethodChange={(m) => updateSettings({ prognosisMethod: m })}
+                    horizon={state.settings.prognosisHorizonMonths}
+                    onHorizonChange={(n) => updateSettings({ prognosisHorizonMonths: n })}
+                  />
+                  <InflationControls
+                    settings={state.inflationSettings}
+                    series={state.inflationSeriesByCountry[state.inflationSettings.countryCode] ?? null}
+                    onChange={(patch) => updateInflationSettings(patch)}
+                    onSeriesUpdate={upsertInflationSeries}
+                  />
+                </>
               )}
             </div>
           </div>
@@ -153,6 +164,13 @@ export function App() {
                 prognosisMethod={state.settings.prognosisMethod}
                 prognosisHorizon={state.settings.prognosisHorizonMonths}
                 showCombined={state.settings.showCombined}
+                inflation={{
+                  enabled: state.inflationSettings.enabled,
+                  mode: state.inflationSettings.mode,
+                  series:
+                    state.inflationSeriesByCountry[state.inflationSettings.countryCode] ?? null,
+                  anchorDate: state.inflationSettings.anchorDate,
+                }}
               />
             )}
             {view === 'monthly' && (

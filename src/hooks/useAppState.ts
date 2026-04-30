@@ -9,6 +9,12 @@ import type {
   Transaction,
 } from '../lib/types';
 import { mergeTransactions } from '../lib/balances';
+import {
+  BUNDLED_SERIES,
+  InflationSettingsSchema,
+  type InflationSeries,
+  type InflationSettings,
+} from '../lib/inflation';
 
 export type AppState = {
   loaded: boolean;
@@ -18,6 +24,8 @@ export type AppState = {
   categories: Category[];
   categoryRules: CategoryRule[];
   categoryOverrides: CategoryOverrides;
+  inflationSettings: InflationSettings;
+  inflationSeriesByCountry: Record<string, InflationSeries>;
 };
 
 export function useAppState() {
@@ -34,6 +42,8 @@ export function useAppState() {
     categories: [],
     categoryRules: [],
     categoryOverrides: {},
+    inflationSettings: InflationSettingsSchema.parse({}),
+    inflationSeriesByCountry: { ...BUNDLED_SERIES },
   });
 
   useEffect(() => {
@@ -45,12 +55,27 @@ export function useAppState() {
       const categories = await storage.loadCategories();
       const categoryRules = await storage.loadCategoryRules();
       const categoryOverrides = await storage.loadCategoryOverrides();
+      const inflationSettings = await storage.loadInflationSettings();
       const txByAccount: Record<string, Transaction[]> = {};
       for (const a of accounts) {
         txByAccount[a.id] = await storage.loadTransactions(a.id);
       }
+      // Hydrate the active country's series from cache (falls back to bundled).
+      const inflationSeriesByCountry: Record<string, InflationSeries> = { ...BUNDLED_SERIES };
+      const cached = await storage.loadInflationSeries(inflationSettings.countryCode);
+      if (cached) inflationSeriesByCountry[cached.countryCode] = cached;
       if (!cancelled)
-        setState({ loaded: true, accounts, txByAccount, settings, categories, categoryRules, categoryOverrides });
+        setState({
+          loaded: true,
+          accounts,
+          txByAccount,
+          settings,
+          categories,
+          categoryRules,
+          categoryOverrides,
+          inflationSettings,
+          inflationSeriesByCountry,
+        });
     })();
     return () => {
       cancelled = true;
@@ -163,6 +188,36 @@ export function useAppState() {
     [],
   );
 
+  const updateInflationSettings = useCallback(async (patch: Partial<InflationSettings>) => {
+    let nextCountry: string | null = null;
+    setState((prev) => {
+      const inflationSettings = { ...prev.inflationSettings, ...patch };
+      if (patch.countryCode && patch.countryCode !== prev.inflationSettings.countryCode) {
+        nextCountry = patch.countryCode;
+      }
+      void storage.saveInflationSettings(inflationSettings);
+      return { ...prev, inflationSettings };
+    });
+    if (nextCountry) {
+      // Hydrate cache for the newly selected country (or fall back to bundled).
+      const cached = await storage.loadInflationSeries(nextCountry);
+      if (cached) {
+        setState((prev) => ({
+          ...prev,
+          inflationSeriesByCountry: { ...prev.inflationSeriesByCountry, [nextCountry as string]: cached },
+        }));
+      }
+    }
+  }, []);
+
+  const upsertInflationSeries = useCallback(async (series: InflationSeries) => {
+    await storage.saveInflationSeries(series);
+    setState((prev) => ({
+      ...prev,
+      inflationSeriesByCountry: { ...prev.inflationSeriesByCountry, [series.countryCode]: series },
+    }));
+  }, []);
+
   return {
     state,
     upsertAccount,
@@ -175,5 +230,7 @@ export function useAppState() {
     setCategoryRules,
     setCategoryOverride,
     setCategoryOverridesBulk,
+    updateInflationSettings,
+    upsertInflationSeries,
   };
 }
