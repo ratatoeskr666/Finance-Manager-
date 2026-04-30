@@ -2,30 +2,48 @@ import { get, set, del, keys } from 'idb-keyval';
 import { z } from 'zod';
 import {
   AccountSchema,
+  CategoryOverridesSchema,
+  CategoryRuleSchema,
+  CategorySchema,
   SettingsSchema,
   TransactionSchema,
   type Account,
+  type Category,
+  type CategoryOverrides,
+  type CategoryRule,
   type Settings,
   type Transaction,
 } from './types';
+import { defaultCategories } from './categories';
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 const KEYS = {
   schemaVersion: 'schemaVersion',
   accounts: 'accounts',
   settings: 'settings',
   transactionsPrefix: 'transactions:',
+  categories: 'categories',
+  categoryRules: 'categoryRules',
+  categoryOverrides: 'categoryOverrides',
 } as const;
 
 const AccountsArraySchema = z.array(AccountSchema);
 const TransactionsArraySchema = z.array(TransactionSchema);
+const CategoriesArraySchema = z.array(CategorySchema);
+const CategoryRulesArraySchema = z.array(CategoryRuleSchema);
 
 export async function init(): Promise<void> {
   const v = await get<number>(KEYS.schemaVersion);
   if (v === undefined) {
     await set(KEYS.schemaVersion, SCHEMA_VERSION);
   }
-  // Future migrations would dispatch on `v` here.
+  // Seed default categories on first run.
+  const cats = await get(KEYS.categories);
+  if (cats === undefined) {
+    await set(KEYS.categories, defaultCategories());
+    await set(KEYS.categoryRules, []);
+    await set(KEYS.categoryOverrides, {});
+  }
 }
 
 export async function loadAccounts(): Promise<Account[]> {
@@ -65,12 +83,60 @@ export async function saveSettings(settings: Settings): Promise<void> {
   await set(KEYS.settings, settings);
 }
 
+export async function loadCategories(): Promise<Category[]> {
+  const raw = await get(KEYS.categories);
+  if (!raw) return [];
+  const parsed = CategoriesArraySchema.safeParse(raw);
+  return parsed.success ? parsed.data : [];
+}
+
+export async function saveCategories(cats: Category[]): Promise<void> {
+  await set(KEYS.categories, cats);
+}
+
+export async function loadCategoryRules(): Promise<CategoryRule[]> {
+  const raw = await get(KEYS.categoryRules);
+  if (!raw) return [];
+  const parsed = CategoryRulesArraySchema.safeParse(raw);
+  return parsed.success ? parsed.data : [];
+}
+
+export async function saveCategoryRules(rules: CategoryRule[]): Promise<void> {
+  await set(KEYS.categoryRules, rules);
+}
+
+export async function loadCategoryOverrides(): Promise<CategoryOverrides> {
+  const raw = await get(KEYS.categoryOverrides);
+  if (!raw) return {};
+  const parsed = CategoryOverridesSchema.safeParse(raw);
+  return parsed.success ? parsed.data : {};
+}
+
+export async function saveCategoryOverrides(overrides: CategoryOverrides): Promise<void> {
+  await set(KEYS.categoryOverrides, overrides);
+}
+
 export async function exportAll(): Promise<string> {
   const accounts = await loadAccounts();
   const txByAccount: Record<string, Transaction[]> = {};
   for (const a of accounts) txByAccount[a.id] = await loadTransactions(a.id);
   const settings = await loadSettings();
-  return JSON.stringify({ schemaVersion: SCHEMA_VERSION, accounts, transactions: txByAccount, settings }, null, 2);
+  const categories = await loadCategories();
+  const categoryRules = await loadCategoryRules();
+  const categoryOverrides = await loadCategoryOverrides();
+  return JSON.stringify(
+    {
+      schemaVersion: SCHEMA_VERSION,
+      accounts,
+      transactions: txByAccount,
+      settings,
+      categories,
+      categoryRules,
+      categoryOverrides,
+    },
+    null,
+    2,
+  );
 }
 
 export async function importAll(json: string): Promise<void> {
@@ -78,11 +144,17 @@ export async function importAll(json: string): Promise<void> {
   const accounts = AccountsArraySchema.parse(parsed.accounts ?? []);
   const settings = SettingsSchema.parse(parsed.settings ?? {});
   const txByAccount = z.record(z.string(), TransactionsArraySchema).parse(parsed.transactions ?? {});
+  const categories = CategoriesArraySchema.parse(parsed.categories ?? []);
+  const categoryRules = CategoryRulesArraySchema.parse(parsed.categoryRules ?? []);
+  const categoryOverrides = CategoryOverridesSchema.parse(parsed.categoryOverrides ?? {});
   await saveAccounts(accounts);
   await saveSettings(settings);
   for (const [id, txs] of Object.entries(txByAccount)) {
     await saveTransactions(id, txs);
   }
+  await saveCategories(categories);
+  await saveCategoryRules(categoryRules);
+  await saveCategoryOverrides(categoryOverrides);
 }
 
 export async function listKeys(): Promise<string[]> {

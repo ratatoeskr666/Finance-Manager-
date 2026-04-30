@@ -2,12 +2,15 @@ import { useMemo, useState } from 'react';
 import { AccountForm } from './components/AccountForm';
 import { AccountList } from './components/AccountList';
 import { BalanceChart } from './components/BalanceChart';
+import { CategoryManager } from './components/CategoryManager';
+import { CategoryReport } from './components/CategoryReport';
 import { CounterpartyPieChart } from './components/CounterpartyPieChart';
 import { CsvImportDialog } from './components/CsvImportDialog';
 import { MonthlySpendingChart } from './components/MonthlySpendingChart';
 import { PrognosisControls } from './components/PrognosisControls';
 import { StatsBar } from './components/StatsBar';
 import { TimespanPicker } from './components/TimespanPicker';
+import { TransactionTable } from './components/TransactionTable';
 import { Card } from './components/ui/Card';
 import { Modal } from './components/ui/Modal';
 import { useAppState } from './hooks/useAppState';
@@ -17,13 +20,35 @@ import { exportAll, importAll } from './lib/storage';
 import { Button } from './components/ui/Button';
 
 export function App() {
-  const { state, upsertAccount, removeAccount, addTransactions, updateSettings } = useAppState();
+  const {
+    state,
+    upsertAccount,
+    removeAccount,
+    addTransactions,
+    updateSettings,
+    upsertCategory,
+    removeCategory,
+    setCategoryRules,
+    setCategoryOverride,
+    setCategoryOverridesBulk,
+  } = useAppState();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [timespan, setTimespan] = useState<Timespan>('6M');
   const [view, setView] = useState<ChartView>('balance');
   const [editing, setEditing] = useState<Account | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
   const [importingFor, setImportingFor] = useState<Account | null>(null);
+  const [managingCategories, setManagingCategories] = useState(false);
+
+  const counterpartySuggestions = useMemo(() => {
+    const set = new Set<string>();
+    for (const txs of Object.values(state.txByAccount)) {
+      for (const t of txs) {
+        if (t.counterparty) set.add(t.counterparty);
+      }
+    }
+    return Array.from(set).sort();
+  }, [state.txByAccount]);
 
   const { fromIso, toIso } = useMemo(() => spanToRange(state, selectedId, timespan), [state, selectedId, timespan]);
 
@@ -88,6 +113,9 @@ export function App() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="subtle" onClick={() => setManagingCategories(true)}>
+              Manage categories
+            </Button>
             <Button variant="ghost" onClick={exportJson} title="Download a JSON backup of all data">
               Export
             </Button>
@@ -145,6 +173,33 @@ export function App() {
                 toIso={toIso}
               />
             )}
+            {view === 'categories' && (
+              <CategoryReport
+                accounts={state.accounts}
+                txByAccount={state.txByAccount}
+                selectedId={selectedId}
+                fromIso={fromIso}
+                toIso={toIso}
+                categories={state.categories}
+                rules={state.categoryRules}
+                overrides={state.categoryOverrides}
+                onManageCategories={() => setManagingCategories(true)}
+              />
+            )}
+            {view === 'transactions' && (
+              <TransactionTable
+                accounts={state.accounts}
+                txByAccount={state.txByAccount}
+                selectedId={selectedId}
+                fromIso={fromIso}
+                toIso={toIso}
+                categories={state.categories}
+                rules={state.categoryRules}
+                overrides={state.categoryOverrides}
+                onSetOverride={setCategoryOverride}
+                onSetOverridesBulk={setCategoryOverridesBulk}
+              />
+            )}
           </div>
         </Card>
 
@@ -196,6 +251,17 @@ export function App() {
           onImport={(txs) => addTransactions(importingFor.id, txs)}
         />
       )}
+
+      <CategoryManager
+        open={managingCategories}
+        onClose={() => setManagingCategories(false)}
+        categories={state.categories}
+        rules={state.categoryRules}
+        onUpsertCategory={upsertCategory}
+        onRemoveCategory={removeCategory}
+        onSetRules={setCategoryRules}
+        counterpartySuggestions={counterpartySuggestions}
+      />
     </div>
   );
 }
@@ -205,9 +271,11 @@ function ViewTabs({ value, onChange }: { value: ChartView; onChange: (v: ChartVi
     { value: 'balance', label: 'Balances' },
     { value: 'monthly', label: 'Monthly spending' },
     { value: 'counterparty', label: 'By recipient' },
+    { value: 'categories', label: 'Categories' },
+    { value: 'transactions', label: 'Transactions' },
   ];
   return (
-    <div className="inline-flex overflow-hidden rounded-lg border border-slate-700 bg-slate-900 text-sm">
+    <div className="inline-flex flex-wrap overflow-hidden rounded-lg border border-slate-700 bg-slate-900 text-sm">
       {TABS.map((t) => (
         <button
           key={t.value}
